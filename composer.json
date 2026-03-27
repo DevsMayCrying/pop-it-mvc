@@ -1,11 +1,13 @@
 {
-    "name": "DevsMayCrying/pop-it-mvc",
-    "description": "POP IT MVC Framework",
-    "type": "project",
     "autoload": {
         "psr-4": {
-            "Src\\": "core/src/"
+            "Src\\": "core/src/",
+            "App\\": "app/"
         }
     },
-    "require": {}
+    "require": {
+        "illuminate/database": "*",
+        "illuminate/events": "*",
+        "illuminate/container": "*"
+    }
 }

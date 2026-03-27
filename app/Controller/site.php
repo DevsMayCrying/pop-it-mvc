@@ -1,19 +1,26 @@
 <?php
 
-namespace Controller;
+namespace App\Controller;
 
-use Src\View;
-
-class Site
+class site
 {
-    public function index(): string
+    public function index()
     {
-        $view = new View();
-        return $view->render('site.hello', ['message' => 'index working']);
+        echo 'Главная страница работает!';
     }
 
-    public function hello(): string
+    public function about()
     {
-        return new View('site.hello', ['message' => 'hello working']);
+        echo 'Страница "О нас"';
+    }
+
+    public function post()
+    {
+        echo 'Страница поста';
+    }
+
+    public function contact()
+    {
+        echo 'Страница контактов';
     }
 }
