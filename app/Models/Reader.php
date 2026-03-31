@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 class Reader extends Model
 {
     protected $table = 'readers';
-    public $timestamps = true;
     
     protected $fillable = [
         'library_card_number',
@@ -16,24 +15,23 @@ class Reader extends Model
         'phone'
     ];
     
-    public function loans()
+    // Связь с выдачами книг
+    public function bookLoans()
     {
         return $this->hasMany(BookLoan::class, 'reader_id');
     }
     
-    public function books()
+    // Активные выдачи (книги на руках) — где returned_at = NULL
+    public function activeLoans()
     {
-        return $this->belongsToMany(Book::class, 'book_loans', 'reader_id', 'book_id')
-                    ->withPivot('issued_at', 'returned_at');
+        return $this->hasMany(BookLoan::class, 'reader_id')
+                    ->whereNull('returned_at');
     }
     
-    public function activeBooks()
+    // История выдач
+    public function loanHistory()
     {
-        return $this->books()->wherePivotNull('returned_at');
-    }
-    
-    public function historyBooks()
-    {
-        return $this->books()->wherePivotNotNull('returned_at');
+        return $this->hasMany(BookLoan::class, 'reader_id')
+                    ->orderBy('created_at', 'desc');
     }
 }

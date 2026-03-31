@@ -8,63 +8,67 @@ class View
 {
     private string $view = '';
     private array $data = [];
-    private string $root = '';
-    private string $layout = '/layouts/main.php';
+    private string $viewsPath = '';
 
     public function __construct(string $view = '', array $data = [])
     {
-        $this->root = $this->getRoot();
         $this->view = $view;
         $this->data = $data;
-    }
-
-    //Полный путь до директории с представлениями
-    private function getRoot(): string
-    {
-        global $app;
-        $root = $app->settings->getRootPath();
-        $path = $app->settings->getViewsPath();
-
-        return $_SERVER['DOCUMENT_ROOT'] . $root . $path;
-    }
-
-    //Путь до основного файла с шаблоном сайта
-    private function getPathToMain(): string
-    {
-        return $this->root . $this->layout;
-    }
-
-    //Путь до текущего шаблона
-    private function getPathToView(string $view = ''): string
-    {
-        $view = str_replace('.', '/', $view);
-        return $this->getRoot() . "/$view.php";
+        // Путь к папке views (на два уровня выше core)
+        $this->viewsPath = dirname(__DIR__, 2) . '/views';
     }
 
     public function render(string $view = '', array $data = []): string
     {
-        $path = $this->getPathToView($view);
+        $viewFile = $this->viewsPath . '/' . str_replace('.', '/', $view) . '.php';
 
-        if (file_exists($this->getPathToMain()) && file_exists($path)) {
+        // ОТЛАДКА: Выводим информацию о поиске файла
+        $debug = "<!-- ========== DEBUG VIEW ========== -->\n";
+        $debug .= "<!-- Запрошенное представление: {$view} -->\n";
+        $debug .= "<!-- Полный путь к файлу: {$viewFile} -->\n";
+        $debug .= "<!-- Файл существует: " . (file_exists($viewFile) ? "ДА" : "НЕТ") . " -->\n";
 
-            //Импортирует переменные из массива в текущую таблицу символов
-            extract($data, EXTR_PREFIX_SAME, '');
-
-            //Включение буферизации вывода
-            ob_start();
-            require $path;
-            //Помещаем буфер в переменную и очищаем его
-            $content = ob_get_clean();
-
-            //Возвращаем собранную страницу
-            return require($this->getPathToMain());
+        if (!file_exists($viewFile)) {
+            $debug .= "<!-- ОШИБКА: Файл не найден! -->\n";
+            $debug .= "<!-- ========== END DEBUG ========== -->\n";
+            throw new Exception("View file not found: " . $viewFile);
         }
-        throw new Exception('Error render');
+
+        $debug .= "<!-- Файл найден, загружаем... -->\n";
+        $debug .= "<!-- ========== END DEBUG ========== -->\n";
+
+        extract($this->data, EXTR_PREFIX_SAME, '');
+        extract($data, EXTR_PREFIX_SAME, '');
+
+        ob_start();
+        require $viewFile;
+        $content = ob_get_clean();
+
+        $layoutFile = $this->viewsPath . '/layouts/main.php';
+
+        // ОТЛАДКА: Информация о layout
+        $debugLayout = "<!-- ========== DEBUG LAYOUT ========== -->\n";
+        $debugLayout .= "<!-- Layout файл: {$layoutFile} -->\n";
+        $debugLayout .= "<!-- Layout существует: " . (file_exists($layoutFile) ? "ДА" : "НЕТ") . " -->\n";
+        $debugLayout .= "<!-- ========== END DEBUG ========== -->\n";
+
+        if (file_exists($layoutFile)) {
+            extract($this->data, EXTR_PREFIX_SAME, '');
+            extract($data, EXTR_PREFIX_SAME, '');
+            ob_start();
+            require $layoutFile;
+            return $debugLayout . $debug . ob_get_clean();
+        }
+
+        return $debugLayout . $debug . $content;
     }
 
     public function __toString(): string
     {
-        return $this->render($this->view, $this->data);
+        try {
+            return $this->render($this->view, $this->data);
+        } catch (Exception $e) {
+            return "<!-- View Error: " . $e->getMessage() . " -->\n";
+        }
     }
-
 }

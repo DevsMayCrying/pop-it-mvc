@@ -7,28 +7,36 @@ use Illuminate\Database\Eloquent\Model;
 class Book extends Model
 {
     protected $table = 'books';
+
     protected $fillable = [
-        'author',
-        'title',
-        'year',
-        'price',
-        'is_new',
-        'annotation'
+        'author', 'title', 'year', 'total_copies',
+        'available_copies', 'price', 'is_new', 'annotation'
     ];
 
     protected $casts = [
-        'is_new' => 'boolean',
+        'year' => 'integer',
         'price' => 'float',
+        'is_new' => 'boolean',
+        'total_copies' => 'integer',
+        'available_copies' => 'integer',
     ];
 
+    /**
+     * Связь с выдачами
+     */
     public function loans()
     {
         return $this->hasMany(BookLoan::class, 'book_id');
     }
 
-    public function readers()
+    /**
+     * Проверка наличия активных выдач (книга на руках)
+     */
+    public function activeLoan()
     {
-        return $this->belongsToMany(Reader::class, 'book_loans', 'book_id', 'reader_id')
-            ->withPivot('issued_at', 'returned_at');
+        // Проверяем, есть ли активные выдачи у этой книги
+        return $this->loans()
+            ->whereNull('returned_at')
+            ->exists();
     }
 }

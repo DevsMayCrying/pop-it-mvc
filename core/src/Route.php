@@ -7,6 +7,7 @@ use Error;
 class Route
 {
     private static array $routes = [];
+    private static array $routesWithParams = [];
     private static string $prefix = '';
 
     public static function setPrefix($value)
@@ -14,15 +15,33 @@ class Route
         self::$prefix = $value;
     }
 
-    public static function add(string $route, $action): void
+    public static function add(string $route, $action, string $method = 'GET'): void
     {
-        if (!array_key_exists($route, self::$routes)) {
-            self::$routes[$route] = $action;
+        // Сохраняем маршрут с методом
+        $key = $method . ':' . $route;
+
+        // Проверяем, есть ли параметры в маршруте
+        if (strpos($route, '{') !== false) {
+            // Конвертируем маршрут с параметрами в регулярное выражение
+            $pattern = preg_replace('/\{([a-z]+)\}/', '(?P<$1>[^/]+)', $route);
+            $pattern = '#^' . $pattern . '$#';
+
+            self::$routesWithParams[$key] = [
+                'pattern' => $pattern,
+                'action' => $action,
+                'original' => $route
+            ];
+        } else {
+            // Обычный маршрут без параметров
+            if (!array_key_exists($key, self::$routes)) {
+                self::$routes[$key] = $action;
+            }
         }
     }
 
     public function start(): void
     {
+        $method = $_SERVER['REQUEST_METHOD'];
         $path = explode('?', $_SERVER['REQUEST_URI'])[0];
 
         // Убираем префикс если есть
@@ -35,15 +54,45 @@ class Route
             $path = '/';
         }
 
-        if (!array_key_exists($path, self::$routes)) {
-            throw new Error('This path does not exist: ' . $path);
+        $key = $method . ':' . $path;
+
+        // Сначала ищем точное совпадение
+        if (array_key_exists($key, self::$routes)) {
+            $this->executeAction(self::$routes[$key]);
+            return;
         }
 
-        $action = self::$routes[$path];
+        // Ищем маршрут с параметрами
+        foreach (self::$routesWithParams as $routeKey => $routeData) {
+            // Проверяем метод
+            $routeMethod = explode(':', $routeKey)[0];
+            if ($routeMethod !== $method) {
+                continue;
+            }
 
+            // Проверяем соответствие пути
+            if (preg_match($routeData['pattern'], $path, $matches)) {
+                // Извлекаем параметры
+                $params = [];
+                foreach ($matches as $key => $value) {
+                    if (is_string($key)) {
+                        $params[$key] = $value;
+                    }
+                }
+
+                $this->executeAction($routeData['action'], $params);
+                return;
+            }
+        }
+
+        throw new Error('This path does not exist: ' . $path);
+    }
+
+    private function executeAction($action, array $params = []): void
+    {
         // Если это замыкание (анонимная функция)
         if ($action instanceof \Closure) {
-            echo $action();
+            echo $action(...array_values($params));
             return;
         }
 
@@ -61,7 +110,8 @@ class Route
                 throw new Error('Method does not exist: ' . $method);
             }
 
-            call_user_func([new $class, $method]);
+            $controller = new $class();
+            call_user_func([$controller, $method], ...array_values($params));
             return;
         }
 
@@ -70,9 +120,9 @@ class Route
             $class = $action[0];
             $method = $action[1];
 
-            // Если класс указан без namespace, добавляем App\Controller
+            // Если класс указан без namespace, добавляем App\Controllers
             if (is_string($class) && strpos($class, '\\') === false) {
-                $class = 'App\\Controller\\' . $class;
+                $class = 'App\\Controllers\\' . $class;
             }
 
             if (!class_exists($class)) {
@@ -83,7 +133,8 @@ class Route
                 throw new Error('Method does not exist: ' . $method);
             }
 
-            call_user_func([new $class, $method]);
+            $controller = new $class();
+            call_user_func([$controller, $method], ...array_values($params));
             return;
         }
 
@@ -93,12 +144,29 @@ class Route
     // Метод для получения всех маршрутов (может пригодиться)
     public static function getRoutes(): array
     {
-        return self::$routes;
+        return array_merge(
+            array_keys(self::$routes),
+            array_map(function($item) {
+                return $item['original'];
+            }, self::$routesWithParams)
+        );
     }
 
     // Метод для проверки существования маршрута
-    public static function hasRoute(string $route): bool
+    public static function hasRoute(string $route, string $method = 'GET'): bool
     {
-        return array_key_exists($route, self::$routes);
+        $key = $method . ':' . $route;
+
+        if (array_key_exists($key, self::$routes)) {
+            return true;
+        }
+
+        foreach (self::$routesWithParams as $routeKey => $routeData) {
+            if ($routeData['original'] === $route) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

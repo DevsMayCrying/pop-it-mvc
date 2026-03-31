@@ -73,3 +73,6 @@ function getConfigs(string $path = DIR_CONFIG): array
 require_once __DIR__ . '/../routes/web.php';
 
 return new Src\Application(new Src\Settings(getConfigs()));
+// Настройка сессий
+ini_set('session.save_path', __DIR__ . '/../storage/sessions');
+session_save_path(__DIR__ . '/../storage/sessions');
